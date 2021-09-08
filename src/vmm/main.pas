@@ -25,7 +25,7 @@ program main;
 {$mode delphi}
 {$MACRO ON}
 
-uses BaseUnix, Linux, Kvm, sysutils;
+uses BaseUnix, Linux, Kvm, sysutils, HyperCalls;
 
 const
   GUEST_ADDR_START = 0;
@@ -139,11 +139,9 @@ begin
       value := Pointer(PtrUInt(guestvcpu.run) + ioexit.data_offset);
       ret := GetRegisters(@guestvcpu, @regs);
       //WriteLn('IO: port: 0x', IntToHex(ioexit.port, 4), ', value: 0x', IntToHex(value^, 4), ', rbx: 0x', IntToHex(regs.rbx, 4), ', rcx: 0x', IntToHex(regs.rcx, 4));
-      if value^ = 1 then
-      begin
-        tmp := mem + regs.rcx; // remove GUEST_START_ADDR
-        WriteLn(tmp);
-      end;
+      
+      HyperCallEntry(value^, @regs, @region);
+      
       continue;
     end else
     begin
