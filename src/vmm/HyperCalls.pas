@@ -3,16 +3,19 @@ Unit HyperCalls;
 
 interface
 
-uses Kvm;
+uses Kvm, BaseUnix;
 
 function HyperCallEntry(nr: LongInt; regs: pkvmregs; region: pkvm_user_memory_region): Boolean;
 
 implementation
 
-Const
-  MAX_NR_HYPER = 30;
+const
+  MAX_NR_HYPER = 500;
+  syscall_nr_ioctl = 16; // FpIOCtl:=do_SysCall(syscall_nr_ioctl,tsysparam(fd),tsysparam(Request),TSysParam(data));
+  syscall_nr_read  = 0;
+  syscall_nr_write = 1;
 
-Type
+type
   THypercallFunc = function(reg: pkvmregs; region: pkvm_user_memory_region) : LongInt;
 
 var
@@ -32,6 +35,13 @@ begin
   writeln(tmp);
 end;
 
+function HyperCallWrite(regs: pkvmregs; region: pkvm_user_memory_region): LongInt;
+var
+  tmp: PChar;
+begin
+  Result := fpWrite(regs^.rdi, PChar(regs^.rsi + region^.userspace_addr - region^.guest_phys_addr), regs^.rdx);
+end;
+
 function HyperCallEntry(nr: LongInt; regs: pkvmregs; region: pkvm_user_memory_region): Boolean;
 begin
   Result := False;
@@ -39,6 +49,7 @@ begin
   if nr < MAX_NR_HYPER then
   begin
     HyperCallsAr[nr](regs, region);
+    // TODO: set result of hypercall in rax
     Result := True;
   end;
 end;
@@ -51,5 +62,6 @@ initialization
   begin
     HyperCallsAr[tmp] := @HyperCallIgnore;
   end;
-  HyperCallsAr[1] := @HyperCallWriteConsole;
+  HyperCallsAr[syscall_nr_write] := @HyperCallWrite;
+  HyperCallsAr[499] := @HyperCallWriteConsole;
 end.
