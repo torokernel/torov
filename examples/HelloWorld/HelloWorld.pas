@@ -20,8 +20,4 @@ end;
 begin
 WriteConsole('Hello World!'); 
 WriteConsole('I am ToroV!'); 
-
-asm
-hlt
-end;
 end.

@@ -167,9 +167,9 @@ call InitSystem
 end;
 
 
-procedure SystemExit; [public, alias : 'SYSTEMEXIT'];
-begin
-while true do;
+procedure SystemExit; [public, alias : 'SYSTEMEXIT']; assembler;
+asm
+hlt
 end;
 
 
