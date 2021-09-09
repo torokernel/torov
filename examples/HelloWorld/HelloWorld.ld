@@ -138,6 +138,8 @@ HelloWorld.o
 ../../src/rtl/ToroVSys.o
 /root/fpc-3.2.0-for-torov/rtl/linux/system.o
 /root/fpc-3.2.0-for-torov/rtl/objpas/objpas.o
+/root/fpc-3.2.0-for-torov/rtl/unix/baseunix.o
+/root/fpc-3.2.0-for-torov/rtl/unix/unixtype.o
 )
 OUTPUT_FORMAT(binary)
 SECTIONS

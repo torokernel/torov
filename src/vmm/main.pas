@@ -125,7 +125,7 @@ begin
       ret := GetRegisters(@guestvcpu, @regs);
       if ret = -1 then
       begin
-        WriteLn('KVM_SET_REGS');
+        WriteLn('KVM_GET_REGS');
         Break;
       end;
       WriteLn('Halt instruction, rax: 0x', IntToHex(regs.rax, 4), ', rbx: 0x', IntToHex(regs.rbx, 4), ', rip: 0x', IntToHex(regs.rip, 4));
@@ -140,8 +140,10 @@ begin
       ret := GetRegisters(@guestvcpu, @regs);
       //WriteLn('IO: port: 0x', IntToHex(ioexit.port, 4), ', value: 0x', IntToHex(value^, 4), ', rbx: 0x', IntToHex(regs.rbx, 4), ', rcx: 0x', IntToHex(regs.rcx, 4));
       
-      HyperCallEntry(value^, @regs, @region);
-      
+      ret := HyperCallEntry(value^, @regs, @region);
+      // set returned value
+      regs.rax := ret;
+      ConfigureRegs(@guestvcpu, @regs);
       continue;
     end else
     begin

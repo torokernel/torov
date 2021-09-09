@@ -1,7 +1,5 @@
 app="$1";
 appsrc="$app.pas";
-# if you change it, do not commit it because CI wont work
-# if you sudo CloudIt, this may contain an incorrect USER
 fpcrtlsource="$(eval echo ~$USER)/fpc-3.2.0-for-torov/rtl/";
 # change to -O- for debugging
 compileropti="-O2 -v0"
