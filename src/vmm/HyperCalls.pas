@@ -1,11 +1,31 @@
-Unit HyperCalls;
+//
+// This unit handles the VMExits and provides a POSIX interface to the guest.
+//
+// Copyright (c) 2021 Matias Vara <matiasevara@gmail.com>
+// All Rights Reserved
+//
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+//
+unit HyperCalls;
 
 
 interface
 
 uses Kvm, BaseUnix;
 
-function HyperCallEntry(nr: LongInt; regs: pkvmregs; region: pkvm_user_memory_region): LongInt;
+function HyperCallEntry(nr: LongInt; regs: pkvmregs; region, heap: pkvm_user_memory_region): LongInt;
 
 implementation
 
@@ -15,6 +35,7 @@ const
   syscall_nr_read  = 0;
   syscall_nr_write = 1;
   syscall_nr_getrlimit = 97;
+  syscall_nr_mmap = 9;
 
 type
   THypercallFunc = function(reg: pkvmregs; region: pkvm_user_memory_region) : LongInt;
@@ -56,12 +77,26 @@ begin
   Result := fpRead(regs^.rdi, PChar(regs^.rsi + region^.userspace_addr - region^.guest_phys_addr), regs^.rdx);
 end;
 
-function HyperCallEntry(nr: LongInt; regs: pkvmregs; region: pkvm_user_memory_region): LongInt;
+var
+  count: LongInt = 0;
+
+function HyperCallMMap(regs: pkvmregs; heap: pkvm_user_memory_region): LongInt;
+begin
+  Result := count + heap^.guest_phys_addr;
+  count += regs^.rsi; 
+end;
+
+function HyperCallEntry(nr: LongInt; regs: pkvmregs; region, heap: pkvm_user_memory_region): LongInt;
 begin
   Result := -1;
-  //WriteLn('HyperCall:', nr);
+  WriteLn('HyperCall:', nr);
   if nr < MAX_NR_HYPER then
-    Result := HyperCallsAr[nr](regs, region);
+  begin
+    if nr = syscall_nr_mmap then
+      Result := HyperCallMMap(regs, heap)
+    else
+      Result := HyperCallsAr[nr](regs, region);
+  end;
 end;
 
 var 
@@ -76,5 +111,6 @@ initialization
   HyperCallsAr[syscall_nr_write] := @HyperCallWrite;
   HyperCallsAr[syscall_nr_ioctl] := @HyperCallIOCtl;
   HyperCallsAr[syscall_nr_getrlimit] := @HyperCallGetRLimit;
+  HyperCallsAr[syscall_nr_mmap] := @HyperCallMMap;
   HyperCallsAr[499] := @HyperCallWriteConsole;
 end.

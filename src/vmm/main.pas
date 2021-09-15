@@ -36,6 +36,7 @@ const
     rflags : 2;
   );
 
+// TODO: To check if binary fits
 procedure LoadBinary(filemem: PChar; path: AnsiString);
 var
   Buf : Array[1..2048] of byte;
@@ -58,7 +59,7 @@ var
   guest: VM;
   guestVCPU: VCPU;
   exit_reason: LongInt;
-  region: kvm_userspace_memory_region;
+  region, heap: kvm_userspace_memory_region;
   regs: kvm_regs;
   ioexit: PKvmRunExitIO;
   value: ^QWORD;
@@ -77,7 +78,7 @@ begin
   end;
 
   // allocate one aligned page of guest memory to hold the code.
-  mem := fpmmap(nil, GUEST_ADDR_MEM_SIZE, PROT_READ or PROT_WRITE, MAP_SHARED or MAP_ANONYMOUS, -1, 0);
+  mem := fpmmap(nil, GUEST_ADDR_MEM_SIZE * 2, PROT_READ or PROT_WRITE, MAP_SHARED or MAP_ANONYMOUS, -1, 0);
   if mem = nil then
   begin
     WriteLn('Error at Allocating memory');
@@ -98,7 +99,19 @@ begin
     WriteLn('Error at KVM_SET_USER_MEMORY_REGION');
     Exit;
   end;
-
+  
+  // allocate heap
+  heap.slot := 1;
+  heap.guest_phys_addr := GUEST_ADDR_START + GUEST_ADDR_MEM_SIZE;
+  heap.memory_size := GUEST_ADDR_MEM_SIZE;
+  heap.userspace_addr := QWORD(mem) + GUEST_ADDR_MEM_SIZE;
+  ret := SetUserMemoryRegion(guest.vmfd, @heap);
+  if ret = -1 then
+  begin
+    WriteLn('Error at KVM_SET_USER_MEMORY_REGION');
+    Exit;
+  end;
+ 
   // vm is limited to one vcpu
   guestvcpu.vm := @guest;
   if not CreateVCPU(guest.vmfd, @guestvcpu) then
@@ -140,7 +153,7 @@ begin
       ret := GetRegisters(@guestvcpu, @regs);
       //WriteLn('IO: port: 0x', IntToHex(ioexit.port, 4), ', value: 0x', IntToHex(value^, 4), ', rbx: 0x', IntToHex(regs.rbx, 4), ', rcx: 0x', IntToHex(regs.rcx, 4));
       
-      ret := HyperCallEntry(value^, @regs, @region);
+      ret := HyperCallEntry(value^, @regs, @region, @heap);
       // set returned value
       regs.rax := ret;
       ConfigureRegs(@guestvcpu, @regs);

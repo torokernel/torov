@@ -228,7 +228,10 @@ begin
   pml4^ := PDE64_PRESENT or PDE64_RW or PDE64_USER or $3000;
   pdpt^ := PDE64_PRESENT or PDE64_RW or PDE64_USER or $4000;
   pd^ := PDE64_PRESENT or PDE64_RW or PDE64_USER or PDE64_PS;
-
+  // TODO: to check this
+  Inc(pd);
+  pd^ := PDE64_PRESENT or PDE64_RW or PDE64_USER or PDE64_PS or $200000;
+  
   // this supposes that we start at 0
   sregs.cr3 := $2000;
   sregs.cr4 := CR4_PAE;

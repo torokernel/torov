@@ -120,7 +120,7 @@ begin
   ToroVMemoryManager.ReAllocMem := @ToroReAllocMem;
   ToroVMemoryManager.RelocateHeap := nil;
   ToroVMemoryManager.InitThread := nil;
-  SetMemoryManager(ToroVMemoryManager);
+  //SetMemoryManager(ToroVMemoryManager);
   
   with ToroThreadManager do
   begin
