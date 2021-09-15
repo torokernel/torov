@@ -36,6 +36,7 @@ const
   syscall_nr_write = 1;
   syscall_nr_getrlimit = 97;
   syscall_nr_mmap = 9;
+  syscall_nr_unmmap = 11;
 
 type
   THypercallFunc = function(reg: pkvmregs; region: pkvm_user_memory_region) : LongInt;
@@ -86,6 +87,11 @@ begin
   count += regs^.rsi; 
 end;
 
+function HyperCallUNMMap(regs: pkvmregs; region: pkvm_user_memory_region): LongInt;
+begin
+  Result := 0;
+end;
+
 function HyperCallEntry(nr: LongInt; regs: pkvmregs; region, heap: pkvm_user_memory_region): LongInt;
 begin
   Result := -1;
@@ -112,5 +118,6 @@ initialization
   HyperCallsAr[syscall_nr_ioctl] := @HyperCallIOCtl;
   HyperCallsAr[syscall_nr_getrlimit] := @HyperCallGetRLimit;
   HyperCallsAr[syscall_nr_mmap] := @HyperCallMMap;
+  HyperCallsAr[syscall_nr_unmmap] := @HyperCallUNMMap;
   HyperCallsAr[499] := @HyperCallWriteConsole;
 end.

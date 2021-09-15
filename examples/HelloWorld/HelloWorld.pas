@@ -12,5 +12,6 @@ begin
   WriteLn('You pressed: ', a);
   r := GetMem(120);
   r^ := 'a';
+  FreeMem(r);
   WriteLn('Exiting');
 end.
