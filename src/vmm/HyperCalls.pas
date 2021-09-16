@@ -23,7 +23,7 @@ unit HyperCalls;
 
 interface
 
-uses Kvm, BaseUnix;
+uses Kvm, BaseUnix, Sockets;
 
 function HyperCallEntry(nr: LongInt; regs: pkvmregs; region, heap: pkvm_user_memory_region): LongInt;
 
@@ -34,9 +34,16 @@ const
   syscall_nr_ioctl = 16;
   syscall_nr_read  = 0;
   syscall_nr_write = 1;
+  syscall_nr_close = 3;
   syscall_nr_getrlimit = 97;
   syscall_nr_mmap = 9;
   syscall_nr_unmmap = 11;
+  syscall_nr_socket = 41;
+  syscall_nr_bind = 49;
+  syscall_nr_listen = 50;
+  syscall_nr_accept = 43;
+  syscall_nr_sendto = 44;
+  syscall_nr_recvfrom = 45;
 
 type
   THypercallFunc = function(reg: pkvmregs; region: pkvm_user_memory_region) : LongInt;
@@ -78,6 +85,11 @@ begin
   Result := fpRead(regs^.rdi, PChar(regs^.rsi + region^.userspace_addr - region^.guest_phys_addr), regs^.rdx);
 end;
 
+function HyperCallClose(regs: pkvmregs; region: pkvm_user_memory_region): LongInt;
+begin
+  Result := fpClose(regs^.rdi);
+end;
+
 var
   count: LongInt = 0;
 
@@ -92,10 +104,40 @@ begin
   Result := 0;
 end;
 
+function HyperCallSocket(regs: pkvmregs; region: pkvm_user_memory_region): LongInt;
+begin
+  Result := fpSocket(regs^.rdi, regs^.rsi, regs^.rdx);
+end;
+
+function HyperCallBind(regs: pkvmregs; region: pkvm_user_memory_region): LongInt;
+begin
+  Result := fpBind(regs^.rdi, psockaddr(regs^.rsi + region^.userspace_addr - region^.guest_phys_addr), regs^.rdx);
+end;
+
+function HyperCallListen(regs: pkvmregs; region: pkvm_user_memory_region): LongInt;
+begin
+  Result := fpListen(regs^.rdi, regs^.rsi);
+end;
+
+function HyperCallAccept(regs: pkvmregs; region: pkvm_user_memory_region): LongInt;
+begin
+  Result := fpAccept(regs^.rdi, psockaddr(regs^.rsi + region^.userspace_addr - region^.guest_phys_addr), pSockLen(regs^.rdx + region^.userspace_addr - region^.guest_phys_addr));
+end;
+
+function HyperCallSendTo(regs: pkvmregs; region: pkvm_user_memory_region): LongInt;
+begin
+  Result := fpSendTo(regs^.rdi, psockaddr(regs^.rsi + region^.userspace_addr - region^.guest_phys_addr), regs^.rdx, regs^.r10, psockaddr(regs^.r8 - region^.userspace_addr - region^.guest_phys_addr), regs^.r9);
+end;
+
+function HyperCallRecvFrom(regs: pkvmregs; region: pkvm_user_memory_region): LongInt;
+begin
+  Result := fpRecvFrom(regs^.rdi, Pointer(regs^.rsi + region^.userspace_addr - region^.guest_phys_addr), regs^.rdx, regs^.r10, psockaddr(regs^.r8 - region^.userspace_addr - region^.guest_phys_addr), pSockLen(regs^.r9 + region^.userspace_addr - region^.guest_phys_addr));
+end;
+
 function HyperCallEntry(nr: LongInt; regs: pkvmregs; region, heap: pkvm_user_memory_region): LongInt;
 begin
   Result := -1;
-  WriteLn('HyperCall:', nr);
+  //WriteLn('HyperCall:', nr);
   if nr < MAX_NR_HYPER then
   begin
     if nr = syscall_nr_mmap then
@@ -113,11 +155,18 @@ initialization
   begin
     HyperCallsAr[tmp] := @HyperCallIgnore;
   end;
+  HyperCallsAr[syscall_nr_close] := @HyperCallClose;
   HyperCallsAr[syscall_nr_read] := @HyperCallRead;
   HyperCallsAr[syscall_nr_write] := @HyperCallWrite;
   HyperCallsAr[syscall_nr_ioctl] := @HyperCallIOCtl;
   HyperCallsAr[syscall_nr_getrlimit] := @HyperCallGetRLimit;
   HyperCallsAr[syscall_nr_mmap] := @HyperCallMMap;
   HyperCallsAr[syscall_nr_unmmap] := @HyperCallUNMMap;
+  HyperCallsAr[syscall_nr_socket] := @HyperCallSocket;
+  HyperCallsAr[syscall_nr_bind] := @HyperCallBind;
+  HyperCallsAr[syscall_nr_listen] := @HyperCallListen;
+  HyperCallsAr[syscall_nr_accept] := @HyperCallAccept;
+  HyperCallsAr[syscall_nr_sendto] := @HyperCallSendTo;
+  HyperCallsAr[syscall_nr_recvfrom] := @HyperCallRecvFrom;
   HyperCallsAr[499] := @HyperCallWriteConsole;
 end.
