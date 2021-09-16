@@ -1,7 +1,7 @@
 //
 // This unit handles the VMExits and provides a POSIX interface to the guest.
 //
-// Copyright (c) 2021 Matias Vara <matiasevara@gmail.com>
+// Copyright (c) 2021 Matias Vara <matiasevara@torokernel.io>
 // All Rights Reserved
 //
 //

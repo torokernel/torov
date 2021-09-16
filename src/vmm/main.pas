@@ -1,8 +1,8 @@
 // main.pas
 //
-// This program demostrates the use of the KVM API to create and run a VM.
+// This program runs an application in the context of VM.
 //
-// Copyright (c) 2021 Matias Vara <matiasevara@gmail.com>
+// Copyright (c) 2021 Matias Vara <matiasevara@torokernel.io>
 // All Rights Reserved
 //
 //
