@@ -166,5 +166,6 @@ begin
     end;
   end;
 
+  Fpmunmap(mem, GUEST_ADDR_MEM_SIZE * 2);
   fpClose(kvmfd);
 end.
