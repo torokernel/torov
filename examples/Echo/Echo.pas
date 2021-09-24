@@ -1,7 +1,8 @@
 //
 // Echo Example
 //
-// This example echoes on port 50000.
+// This example echoes on port 50000. This example is based on the example
+// presented at https://www.pascalgamedevelopment.com/archive/index.php/t-7404.html
 //
 // Copyright (c) 2021 Matias Vara <matiasevara@torokernel.io>
 // All Rights Reserved
@@ -45,7 +46,6 @@ Begin
   If ListenSocket = SOCKET_ERROR Then
     PrintError ('Server : Socket : ');
   ServerAddr.sin_family := AF_INET;
-  { port 50000 in network order }
   ServerAddr.sin_port := htons(50000);
   ServerAddr.sin_addr.s_addr := htonl($7F000001);
   If fpBind(ListenSocket,@ServerAddr,sizeof(ServerAddr)) = SOCKET_ERROR Then
