@@ -1,6 +1,6 @@
 // main.pas
 //
-// This program runs an application in the context of VM.
+// This program allows to run an application as a VM.
 //
 // Copyright (c) 2021 Matias Vara <matiasevara@torokernel.io>
 // All Rights Reserved
@@ -99,7 +99,7 @@ begin
     WriteLn('Error at KVM_SET_USER_MEMORY_REGION');
     Exit;
   end;
-  
+
   // allocate heap
   heap.slot := 1;
   heap.guest_phys_addr := GUEST_ADDR_START + GUEST_ADDR_MEM_SIZE;
@@ -111,7 +111,7 @@ begin
     WriteLn('Error at KVM_SET_USER_MEMORY_REGION');
     Exit;
   end;
- 
+
   // vm is limited to one vcpu
   guestvcpu.vm := @guest;
   if not CreateVCPU(guest.vmfd, @guestvcpu) then
@@ -123,6 +123,10 @@ begin
 
   // configure general purpose registers
   if not ConfigureRegs(@guestvcpu, @guestinitialregs) then
+    Exit;
+
+  // setup debugging
+  if not SetupDebugGuest(@guestvcpu) then
     Exit;
 
   while true do
@@ -152,12 +156,17 @@ begin
       value := Pointer(PtrUInt(guestvcpu.run) + ioexit.data_offset);
       ret := GetRegisters(@guestvcpu, @regs);
       //WriteLn('IO: port: 0x', IntToHex(ioexit.port, 4), ', value: 0x', IntToHex(value^, 4), ', rbx: 0x', IntToHex(regs.rbx, 4), ', rcx: 0x', IntToHex(regs.rcx, 4));
-      
+
       ret := HyperCallEntry(value^, @regs, @region, @heap);
       // set returned value
       regs.rax := ret;
       ConfigureRegs(@guestvcpu, @regs);
       continue;
+    end else if exit_reason = KVM_EXIT_DEBUG then
+    begin
+      // do something
+      WriteLn('Exit due to KVM_DEBUG');
+      Break;
     end else
     begin
       ret := GetRegisters(@guestvcpu, @regs);

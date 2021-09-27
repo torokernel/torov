@@ -43,6 +43,7 @@ const
   KVM_EXIT_HLT = 5;
   KVM_EXIT_MMIO = 6;
   KVM_EXIT_IO = 2;
+  KVM_EXIT_DEBUG = 4;
 
   PDE64_PRESENT = 1;
   PDE64_RW = 1 shl 1;
@@ -58,6 +59,11 @@ const
   EFER_LME = 1 shl 8;
   EFER_LMA = 1 shl 10;
   CR4_PAE = 1 shl 5;
+
+  KVM_GUESTDBG_ENABLE = 1;
+  KVM_GUESTDBG_SINGLESTEP = 2;
+  KVM_GUESTDBG_USE_SW_BP = $10000;
+  KVM_SET_GUEST_DEBUG = $4048ae9b;
 
 type
   pkvm_user_memory_region = ^kvm_userspace_memory_region;
@@ -187,6 +193,12 @@ type
     sregs: kvm_sregs;
   end;
 
+  kvm_guest_debug = record
+    control: DWORD;
+    pad: DWORD;
+    debugreg: array[0..7] of QWORD;
+  end;
+
 function KvmInit: Boolean;
 function CreateVM: LongInt;
 function SetUserMemoryRegion(vmfd: LongInt; region: pkvm_user_memory_region): LongInt;
@@ -195,6 +207,7 @@ function ConfigureSregs(vcpu: PVCPU): Boolean;
 function ConfigureRegs(vcpu: PVCPU;regs: pkvmregs): Boolean;
 function RunVCPU(vcpu: PVCPU; Out Reason: Longint): Boolean;
 function GetRegisters(vcpu: PVCPU; regs: pkvmregs): LongInt;
+function SetupDebugGuest(vcpu: PVCPU) : Boolean;
 
 var
   kvmfd: LongInt;
@@ -231,7 +244,7 @@ begin
   // TODO: to check this
   Inc(pd);
   pd^ := PDE64_PRESENT or PDE64_RW or PDE64_USER or PDE64_PS or $200000;
-  
+
   // this supposes that we start at 0
   sregs.cr3 := $2000;
   sregs.cr4 := CR4_PAE;
@@ -257,6 +270,23 @@ begin
   sregs.fs := seg;
   sregs.gs := seg;
   sregs.ss := seg;
+end;
+
+function SetupDebugGuest(vcpu: PVCPU) : Boolean;
+var
+  debug: kvm_guest_debug;
+  ret: LongInt;
+begin
+  Result := False;
+  fillbyte(debug, sizeof(debug), 0);
+  debug.control := KVM_GUESTDBG_ENABLE or KVM_GUESTDBG_USE_SW_BP;
+  ret := fpIOCtl(vcpu.vcpufd, KVM_SET_GUEST_DEBUG, @debug);
+  if ret = -1 then
+  begin
+    WriteLn('SetupDebugGuest: Error at KVM_SET_GUEST_DEBUG');
+    Exit;
+  end;
+  Result := True;
 end;
 
 function KvmInit: Boolean;
