@@ -21,6 +21,7 @@
 //
 
 uses BaseUnix;
+{$ASMMODE intel}
 var
   a: Char;
 begin

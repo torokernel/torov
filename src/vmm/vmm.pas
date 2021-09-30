@@ -19,22 +19,18 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
-program main;
+program vmm;
 
 {$asmmode intel}
 {$mode delphi}
 {$MACRO ON}
 
-uses BaseUnix, Linux, Kvm, sysutils, HyperCalls;
+uses BaseUnix, Linux, Kvm, sysutils, HyperCalls, Gdbstub;
 
 const
   GUEST_ADDR_START = 0;
   GUEST_ADDR_MEM_SIZE = $200000;
-  guestinitialregs : kvm_regs = (
-    rsp : GUEST_ADDR_MEM_SIZE;
-    rip : GUEST_ADDR_START;
-    rflags : 2;
-  );
+  guestinitialregs : kvm_regs = ( rsp : GUEST_ADDR_MEM_SIZE; rip : GUEST_ADDR_START; rflags : 2 );
 
 // TODO: To check if binary fits
 procedure LoadBinary(filemem: PChar; path: AnsiString);
@@ -55,7 +51,7 @@ end;
 
 var
   ret: LongInt;
-  mem, tmp: PChar;
+  mem: PChar;
   guest: VM;
   guestVCPU: VCPU;
   exit_reason: LongInt;
@@ -63,21 +59,31 @@ var
   regs: kvm_regs;
   ioexit: PKvmRunExitIO;
   value: ^QWORD;
+  ModeDebug: Boolean;
+  DbgLocalPort: LongInt;
+  debugexit: pkvm_debug_exit_arch;
 begin
+  ModeDebug := false;
+  for ret := 1 to ParamCount do
+  begin
+    if ParamStr(ret) = '-debug' then
+    begin
+      ModeDebug := true;
+      DbgLocalPort := StrtoInt(ParamStr(ret+1));
+    end;
+  end;
   If not KvmInit then
   begin
     WriteLn('Unable to open /dev/kvm');
     Exit;
   end;
-
   guest.vmfd := CreateVM();
   if guest.vmfd = -1 then
   begin
     WriteLn('Error at CREATE_VM');
     Exit;
   end;
-
-  // allocate one aligned page of guest memory to hold the code.
+  // allocate memory for guest
   mem := fpmmap(nil, GUEST_ADDR_MEM_SIZE * 2, PROT_READ or PROT_WRITE, MAP_SHARED or MAP_ANONYMOUS, -1, 0);
   if mem = nil then
   begin
@@ -85,9 +91,7 @@ begin
     Exit;
   end;
   guest.mem := mem;
-
   LoadBinary(mem, Paramstr(1));
-
   // set user memory region
   region.slot := 0;
   region.guest_phys_addr := GUEST_ADDR_START;
@@ -99,7 +103,6 @@ begin
     WriteLn('Error at KVM_SET_USER_MEMORY_REGION');
     Exit;
   end;
-
   // allocate heap
   heap.slot := 1;
   heap.guest_phys_addr := GUEST_ADDR_START + GUEST_ADDR_MEM_SIZE;
@@ -111,24 +114,25 @@ begin
     WriteLn('Error at KVM_SET_USER_MEMORY_REGION');
     Exit;
   end;
-
   // vm is limited to one vcpu
   guestvcpu.vm := @guest;
   if not CreateVCPU(guest.vmfd, @guestvcpu) then
     Exit;
-
   // configure system registers
   if not ConfigureSregs(@guestvcpu) then
     Exit;
-
   // configure general purpose registers
   if not ConfigureRegs(@guestvcpu, @guestinitialregs) then
     Exit;
-
-  // setup debugging
-  if not SetupDebugGuest(@guestvcpu) then
-    Exit;
-
+  // run VCPU in debug mode
+  if ModeDebug then
+  begin
+    if not GdbstubInit(DbgLocalPort, @guestvcpu) then
+    begin
+      WriteLn('Error at GdbStubInit');
+      Exit;
+    end;
+  end;
   while true do
   begin
     if not RunVCPU(@guestvcpu, exit_reason) then
@@ -145,6 +149,8 @@ begin
         WriteLn('KVM_GET_REGS');
         Break;
       end;
+      if ModeDebug then
+        BPHandler(@guestvcpu);
       WriteLn('Halt instruction, rax: 0x', IntToHex(regs.rax, 4), ', rbx: 0x', IntToHex(regs.rbx, 4), ', rip: 0x', IntToHex(regs.rip, 4));
       Break;
     end else if exit_reason = KVM_EXIT_MMIO then
@@ -155,8 +161,7 @@ begin
       ioexit := PKvmRunExitIO(@guestvcpu.run.padding_exit[0]);
       value := Pointer(PtrUInt(guestvcpu.run) + ioexit.data_offset);
       ret := GetRegisters(@guestvcpu, @regs);
-      //WriteLn('IO: port: 0x', IntToHex(ioexit.port, 4), ', value: 0x', IntToHex(value^, 4), ', rbx: 0x', IntToHex(regs.rbx, 4), ', rcx: 0x', IntToHex(regs.rcx, 4));
-
+      // WriteLn('IO: port: 0x', IntToHex(ioexit.port, 4), ', value: 0x', IntToHex(value^, 4), ', rbx: 0x', IntToHex(regs.rbx, 4), ', rcx: 0x', IntToHex(regs.rcx, 4));
       ret := HyperCallEntry(value^, @regs, @region, @heap);
       // set returned value
       regs.rax := ret;
@@ -164,9 +169,13 @@ begin
       continue;
     end else if exit_reason = KVM_EXIT_DEBUG then
     begin
-      // do something
-      WriteLn('Exit due to KVM_DEBUG');
-      Break;
+      debugexit := pkvm_debug_exit_arch(@guestvcpu.run.padding_exit[0]);
+      // WriteLn('Exit due to KVM_EXIT_DEBUG');
+      if debugexit^.exception = 3 then
+        BPHandler(@guestvcpu)
+      else
+        StepHandler(@guestvcpu);
+      continue;
     end else
     begin
       ret := GetRegisters(@guestvcpu, @regs);
@@ -174,7 +183,6 @@ begin
       Break;
     end;
   end;
-
   Fpmunmap(mem, GUEST_ADDR_MEM_SIZE * 2);
   fpClose(kvmfd);
 end.

@@ -199,6 +199,15 @@ type
     debugreg: array[0..7] of QWORD;
   end;
 
+  pkvm_debug_exit_arch = ^kvm_debug_exit_arch;
+  kvm_debug_exit_arch = record
+    exception: DWORD;
+    pad: DWORD;
+    pc: QWORD;
+    dr6: QWORD;
+    dr7: QWORD;
+  end;
+
 function KvmInit: Boolean;
 function CreateVM: LongInt;
 function SetUserMemoryRegion(vmfd: LongInt; region: pkvm_user_memory_region): LongInt;
@@ -208,6 +217,8 @@ function ConfigureRegs(vcpu: PVCPU;regs: pkvmregs): Boolean;
 function RunVCPU(vcpu: PVCPU; Out Reason: Longint): Boolean;
 function GetRegisters(vcpu: PVCPU; regs: pkvmregs): LongInt;
 function SetupDebugGuest(vcpu: PVCPU) : Boolean;
+function SetDebugGuestStep(vcpu: PVCPU) : Boolean;
+function ClearDebugGuest(vcpu:PVCPU): Boolean;
 
 var
   kvmfd: LongInt;
@@ -280,6 +291,39 @@ begin
   Result := False;
   fillbyte(debug, sizeof(debug), 0);
   debug.control := KVM_GUESTDBG_ENABLE or KVM_GUESTDBG_USE_SW_BP;
+  ret := fpIOCtl(vcpu.vcpufd, KVM_SET_GUEST_DEBUG, @debug);
+  if ret = -1 then
+  begin
+    WriteLn('SetupDebugGuest: Error at KVM_SET_GUEST_DEBUG');
+    Exit;
+  end;
+  Result := True;
+end;
+
+function SetDebugGuestStep(vcpu: PVCPU) : Boolean;
+var
+  debug: kvm_guest_debug;
+  ret: LongInt;
+begin
+  Result := False;
+  fillbyte(debug, sizeof(debug), 0);
+  debug.control := KVM_GUESTDBG_ENABLE or KVM_GUESTDBG_USE_SW_BP or KVM_GUESTDBG_SINGLESTEP;
+  ret := fpIOCtl(vcpu.vcpufd, KVM_SET_GUEST_DEBUG, @debug);
+  if ret = -1 then
+  begin
+    WriteLn('SetupDebugGuest: Error at KVM_SET_GUEST_DEBUG');
+    Exit;
+  end;
+  Result := True;
+end;
+
+function ClearDebugGuest(vcpu: PVCPU) : Boolean;
+var
+  debug: kvm_guest_debug;
+  ret: LongInt;
+begin
+  Result := False;
+  fillbyte(debug, sizeof(debug), 0);
   ret := fpIOCtl(vcpu.vcpufd, KVM_SET_GUEST_DEBUG, @debug);
   if ret = -1 then
   begin

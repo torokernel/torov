@@ -1,1 +1,1 @@
-fpc -MObjfpc -S2 main.pas
+fpc -MObjfpc -S2 vmm.pas
