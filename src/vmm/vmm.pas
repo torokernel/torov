@@ -1,4 +1,4 @@
-// main.pas
+// vmm.pas
 //
 // This program allows to run an application as a VM.
 //

@@ -1,7 +1,7 @@
 //
 // GDBstub.pas
 //
-// This unit contains a gdbstub to debugt applications compiled for ToroV.
+// This unit contains a gdbstub to debug applications compiled for ToroV.
 //
 // Copyright (c) 2021 Matias Vara <matiasevara@torokernel.io>
 // All Rights Reserved
@@ -502,7 +502,6 @@ begin
   Result := false;
   for i := 0 to MAX_NR_BREAKPOINTS-1 do
      breaks[i] := 0 ;
-  // wait for gdb client at port 1234
   ListenSocket := fpSocket (AF_INET,SOCK_STREAM,0);
   If ListenSocket = SOCKET_ERROR Then
     Exit;

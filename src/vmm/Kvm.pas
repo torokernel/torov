@@ -1,7 +1,8 @@
+// Kvm.pas
 //
 // This unit allows to manage VMs by using the KVM API.
 //
-// Copyright (c) 2021 Matias Vara <matiasevara@gmail.com>
+// Copyright (c) 2021 Matias Vara <matiasevara@torokernel.com>
 // All Rights Reserved
 //
 //
