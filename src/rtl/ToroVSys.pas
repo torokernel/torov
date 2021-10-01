@@ -1,5 +1,6 @@
+// ToroVSys.pas
 //
-// This unit contains the RTL to compile with the application
+// This unit contains a minimal RTL to compile the application
 //
 // Copyright (c) 2021 Matias Vara <matiasevara@torokernel.io>
 // All Rights Reserved
@@ -22,10 +23,7 @@ unit ToroVSys;
 
 
 
-
 interface
-
-
 
 {$ASMMODE INTEL}
 {$mode delphi} 
@@ -33,48 +31,8 @@ interface
 procedure WriteConsole(s: PChar);
 
 implementation
-
-
 function InitSystem(notused: pointer): PtrInt; external name 'PASCALMAIN';
 
-var
-  ToroVMemoryManager: TMemoryManager;
-
-function ToroAllocMem(Size: PtrUInt): Pointer;
-begin
-asm
-mov rax, $1234
-hlt
-end;
-  {  Result := ToroGetMem(Size);
-  if Result <> nil then
-      FillChar(Result^, Size, 0);}
-end;
-
-function ToroReAllocMem(var P: Pointer; NewSize: PtrUInt): Pointer;
-begin
-asm
-mov rax, $1234
-hlt
-end;
-end;
-
-function ToroGetMem(Size: PtrUInt): Pointer;
-begin
-asm
-mov rax, $1234
-hlt
-end;
-end;
-
-function ToroFreeMem(P: Pointer): PtrUInt;
-begin
-asm
-mov rax, $1234
-hlt
-end;
-
-end;
 var  
   ToroThreadManager: TThreadManager;
 
@@ -130,14 +88,6 @@ end;
 
 procedure Init;
 begin
-  ToroVMemoryManager.GetMem := @ToroGetMem;
-  ToroVMemoryManager.FreeMem := @ToroFreeMem;
-  ToroVMemoryManager.AllocMem := @ToroAllocMem;
-  ToroVMemoryManager.ReAllocMem := @ToroReAllocMem;
-  ToroVMemoryManager.RelocateHeap := nil;
-  ToroVMemoryManager.InitThread := nil;
-  //SetMemoryManager(ToroVMemoryManager);
-  
   with ToroThreadManager do
   begin
     InitManager            := nil;
@@ -202,6 +152,5 @@ procedure WriteConsole(s: PChar);
 begin
   DoHyperCall(499, 0, PtrUInt(s),0);
 end;
-
 
 end.
