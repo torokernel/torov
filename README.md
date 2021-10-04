@@ -5,6 +5,8 @@ ToroV enables applications to run as Virtual Machines. It is a Virtual Machine M
 The architecture is made of three components: the guest, the Runtime Library (RTL) and the VMM. The guest is a normal user application that is compiled with the RTL. The RTL contains the required code to run the application as a guest. For example, it allows to correctly boots the application. The guest is an user application that requires services from the OS by using syscalls. In ToroV, the VMM acts as the OS that provides such services. When the guest OS invokes a syscall, this produces a VMExit that the VMM catches, processes, and finally returns to the guest.
 
 ## How to try it?
+You require a Linux host with KVM to run the VMM.
+
 ### Step 1. Install Freepascal 3.2.0
 ```bash
 wget https://sourceforge.net/projects/lazarus/files/Lazarus%20Linux%20amd64%20DEB/Lazarus%202.0.10/fpc-laz_3.2.0-1_amd64.deb/download
