@@ -21,7 +21,7 @@ git clone https://github.com/torokernel/freepascal.git -b fpc-3.2.0-for-torov fp
 Go to `torov/examples` and edit `build.sh` to set the correct paths to fpc. The path corresponds with the directory where the freepascal compiler is stored in step 2.
 
 ### Step 4. Build the VMM
-Go to `torov/src/vmm` and run `build.sh`. This generates the binary named `vmm` which contains the VMM. 
+Go to `torov/src/vmm` and run `build.sh`. This generates the binary named `vmm` which contains the VMM.
 
 ### Step 5. Build HelloWorld example
 Go to `torov/examples/HelloWorld/HelloWorld.ld.elf` and edit the path of the freepascal compiler. Then, run:
@@ -40,6 +40,25 @@ Press a key and ENTER to finish
 a
 You pressed: a
 Halt instruction, rax: 0x30A56, rbx: 0x2F8C0, rip: 0x0156
+```
+## How to debug an application
+You can debug your application by using a gdb client. To do this, follow the steps:
+### Step 1. Generate debug symbols
+Edit `torov/examples/build.sh`, uncomment line 5, and comment line 6. Then, compile the HelloWorld example from its directory:
+```bash
+../build.sh HelloWorld
+```
+### Step 2. Run the VMM with a GdbStub
+Run the VMM with the gdbstub:
+```bash
+../../src/vmm/vmm HelloWorld -debug 1234
+```
+The gdb server waits for the gdb client at port 1234.
+### Step 3. Launch the gdb client
+```bash
+gdb HelloWorld.dbg
+target remote localhost:1234
+c
 ```
 ## License
 GPLv3
