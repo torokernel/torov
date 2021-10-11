@@ -19,14 +19,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
-
-uses BaseUnix;
-{$ASMMODE intel}
-var
-  a: Char;
 begin
   WriteLn('Hello World, I am ToroV!');
-  WriteLn('Press a key and ENTER to finish');
-  FpRead(0, @a, 1);
-  WriteLn('You pressed: ', a);
 end.

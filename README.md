@@ -60,5 +60,13 @@ gdb HelloWorld.dbg
 target remote localhost:1234
 c
 ```
+## Profiling HelloWorld
+In the folder `torov/src/vmm`, you can find the script `Profile.sh` that is meant to measure the running time of the HelloWorld example. To run it, you have just to save the binary in this directory, and then run the script as follows:
+```bash
+./Profile.sh
+Hello World, I am ToroV!
+Average time in 100 executions: 6 ms
+```
+This test measures the average running time of 100 executions of the HelloWorld example and outputs the result.
 ## License
 GPLv3

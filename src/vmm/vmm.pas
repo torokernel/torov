@@ -151,7 +151,7 @@ begin
       end;
       if ModeDebug then
         BPHandler(@guestvcpu);
-      WriteLn('Halt instruction, rax: 0x', IntToHex(regs.rax, 4), ', rbx: 0x', IntToHex(regs.rbx, 4), ', rip: 0x', IntToHex(regs.rip, 4));
+      //WriteLn('Halt instruction, rax: 0x', IntToHex(regs.rax, 4), ', rbx: 0x', IntToHex(regs.rbx, 4), ', rip: 0x', IntToHex(regs.rip, 4));
       Break;
     end else if exit_reason = KVM_EXIT_MMIO then
     begin
