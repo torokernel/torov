@@ -31,6 +31,23 @@ const
   GUEST_ADDR_START = 0;
   GUEST_ADDR_MEM_SIZE = $200000;
   guestinitialregs : kvm_regs = ( rsp : GUEST_ADDR_MEM_SIZE; rip : GUEST_ADDR_START; rflags : 2 );
+  CLONE_NEWPID = $20000000;
+  STACK_SIZE = 1000;
+
+var
+  ret: LongInt;
+  mem: PChar;
+  guest: VM;
+  guestVCPU: VCPU;
+  exit_reason: LongInt;
+  region, heap: kvm_userspace_memory_region;
+  regs: kvm_regs;
+  ioexit: PKvmRunExitIO;
+  value: ^QWORD;
+  ModeDebug: Boolean;
+  DbgLocalPort: LongInt;
+  debugexit: pkvm_debug_exit_arch;
+  stack: array[0..STACK_SIZE] of byte;
 
 // TODO: To check if binary fits
 procedure LoadBinary(filemem: PChar; path: AnsiString);
@@ -49,19 +66,116 @@ begin
   Close(FBinary);
 end;
 
-var
-  ret: LongInt;
-  mem: PChar;
-  guest: VM;
-  guestVCPU: VCPU;
-  exit_reason: LongInt;
-  region, heap: kvm_userspace_memory_region;
-  regs: kvm_regs;
-  ioexit: PKvmRunExitIO;
-  value: ^QWORD;
-  ModeDebug: Boolean;
-  DbgLocalPort: LongInt;
-  debugexit: pkvm_debug_exit_arch;
+function clone(func:TCloneFunc;sp:pointer;flags:longint;args:pointer):longint;
+begin
+//  if ((Pointer(func)=nil) or (sp=nil)) then
+//    exit(-1);
+{$ASMMODE ATT}
+  asm
+        { Insert the argument onto the new stack. }
+        movl    sp,%rsi
+        subl    $16,%rsi
+        movl    args,%rax
+        movl    %rax,8(%rsi)
+
+        { Save the function pointer as the zeroth argument.
+          It will be popped off in the child in the ebx frobbing below. }
+        movl    func,%rax
+        movl    %rax,0(%rsi)
+
+        { Do the system call }
+        pushl   %rdi
+        movl    flags,%rdi
+        movl    $56,%rax
+        syscall
+        popl    %rdi
+        test    %rax,%rax
+        jnz     .Lclone_end
+
+        { We're in the new thread }
+        subl    %rbp,%rbp       { terminate the stack frame }
+        call    *%rdi
+        { exit process }
+        movl    %rax,%rdi
+        movl    $60,%rax
+        syscall
+.Lclone_end:
+        movl    %rax,__RESULT
+  end;
+end;
+
+function chroot(path: pchar):longint;
+begin
+{$ASMMODE ATT}
+  asm
+        { Do the system call }
+        pushl   %rdi
+        movl    path,%rdi
+        movl    $161,%rax
+        syscall
+        popl    %rdi
+        movl    %rax,__RESULT
+  end;
+end;
+
+function VMMLoop(arg: Pointer): LongInt;cdecl;
+begin
+  chroot('./mountpoint');
+  chdir('/');
+  while true do
+  begin
+    if not RunVCPU(@guestvcpu, exit_reason) then
+    begin
+      WriteLn('KVM_RUN');
+      Break;
+    end;
+    if exit_reason = KVM_EXIT_HLT then
+    begin
+      //WriteLn('HLT!');
+      ret := GetRegisters(@guestvcpu, @regs);
+      if ret = -1 then
+      begin
+        WriteLn('KVM_GET_REGS');
+        Break;
+      end;
+      if ModeDebug then
+        BPHandler(@guestvcpu);
+      //WriteLn('Halt instruction, rax: 0x', IntToHex(regs.rax, 4), ', rbx: 0x', IntToHex(regs.rbx, 4), ', rip: 0x', IntToHex(regs.rip, 4));
+      Break;
+    end else if exit_reason = KVM_EXIT_MMIO then
+    begin
+      continue;
+    end else if exit_reason = KVM_EXIT_IO then
+    begin
+      ioexit := PKvmRunExitIO(@guestvcpu.run.padding_exit[0]);
+      value := Pointer(PtrUInt(guestvcpu.run) + ioexit.data_offset);
+      ret := GetRegisters(@guestvcpu, @regs);
+      // WriteLn('IO: port: 0x', IntToHex(ioexit.port, 4), ', value: 0x', IntToHex(value^, 4), ', rbx: 0x', IntToHex(regs.rbx, 4), ', rcx: 0x', IntToHex(regs.rcx, 4));
+      ret := HyperCallEntry(value^, @regs, @region, @heap);
+      // set returned value
+      regs.rax := ret;
+      ConfigureRegs(@guestvcpu, @regs);
+      continue;
+    end else if exit_reason = KVM_EXIT_DEBUG then
+    begin
+      debugexit := pkvm_debug_exit_arch(@guestvcpu.run.padding_exit[0]);
+      // WriteLn('Exit due to KVM_EXIT_DEBUG');
+      if debugexit^.exception = 3 then
+        BPHandler(@guestvcpu)
+      else
+        StepHandler(@guestvcpu);
+      continue;
+    end else
+    begin
+      ret := GetRegisters(@guestvcpu, @regs);
+      WriteLn('exit_reason: rip: 0x', IntToHex(regs.rip, 4), ', reason: ', exit_reason);
+      Break;
+    end;
+  end;
+end;
+
+var pid: TPid;
+
 begin
   ModeDebug := false;
   for ret := 1 to ParamCount do
@@ -133,56 +247,8 @@ begin
       Exit;
     end;
   end;
-  while true do
-  begin
-    if not RunVCPU(@guestvcpu, exit_reason) then
-    begin
-      WriteLn('KVM_RUN');
-      Break;
-    end;
-    if exit_reason = KVM_EXIT_HLT then
-    begin
-      //WriteLn('HLT!');
-      ret := GetRegisters(@guestvcpu, @regs);
-      if ret = -1 then
-      begin
-        WriteLn('KVM_GET_REGS');
-        Break;
-      end;
-      if ModeDebug then
-        BPHandler(@guestvcpu);
-      //WriteLn('Halt instruction, rax: 0x', IntToHex(regs.rax, 4), ', rbx: 0x', IntToHex(regs.rbx, 4), ', rip: 0x', IntToHex(regs.rip, 4));
-      Break;
-    end else if exit_reason = KVM_EXIT_MMIO then
-    begin
-      continue;
-    end else if exit_reason = KVM_EXIT_IO then
-    begin
-      ioexit := PKvmRunExitIO(@guestvcpu.run.padding_exit[0]);
-      value := Pointer(PtrUInt(guestvcpu.run) + ioexit.data_offset);
-      ret := GetRegisters(@guestvcpu, @regs);
-      // WriteLn('IO: port: 0x', IntToHex(ioexit.port, 4), ', value: 0x', IntToHex(value^, 4), ', rbx: 0x', IntToHex(regs.rbx, 4), ', rcx: 0x', IntToHex(regs.rcx, 4));
-      ret := HyperCallEntry(value^, @regs, @region, @heap);
-      // set returned value
-      regs.rax := ret;
-      ConfigureRegs(@guestvcpu, @regs);
-      continue;
-    end else if exit_reason = KVM_EXIT_DEBUG then
-    begin
-      debugexit := pkvm_debug_exit_arch(@guestvcpu.run.padding_exit[0]);
-      // WriteLn('Exit due to KVM_EXIT_DEBUG');
-      if debugexit^.exception = 3 then
-        BPHandler(@guestvcpu)
-      else
-        StepHandler(@guestvcpu);
-      continue;
-    end else
-    begin
-      ret := GetRegisters(@guestvcpu, @regs);
-      WriteLn('exit_reason: rip: 0x', IntToHex(regs.rip, 4), ', reason: ', exit_reason);
-      Break;
-    end;
-  end;
+  pid := clone(VMMLoop, @stack[STACK_SIZE], CLONE_NEWPID or CLONE_VM or CLONE_FILES or CLONE_NEWNS or SIGCHLD, nil);
+  FpWaitPid(pid, nil, 0);
   Fpmunmap(mem, GUEST_ADDR_MEM_SIZE * 2);
   fpClose(kvmfd);
 end.
