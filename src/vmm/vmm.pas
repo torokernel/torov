@@ -21,18 +21,15 @@
 //
 program vmm;
 
-{$asmmode intel}
 {$mode delphi}
-{$MACRO ON}
 
-uses BaseUnix, Linux, Kvm, sysutils, HyperCalls, Gdbstub;
+uses BaseUnix, Linux, Kvm, sysutils, HyperCalls, Gdbstub, NameSpaces;
 
 const
   GUEST_ADDR_START = 0;
   GUEST_ADDR_MEM_SIZE = $200000;
   guestinitialregs : kvm_regs = ( rsp : GUEST_ADDR_MEM_SIZE; rip : GUEST_ADDR_START; rflags : 2 );
-  CLONE_NEWPID = $20000000;
-  STACK_SIZE = 1000;
+  STACK_SIZE = 2048;
 
 var
   ret: LongInt;
@@ -48,6 +45,10 @@ var
   DbgLocalPort: LongInt;
   debugexit: pkvm_debug_exit_arch;
   stack: array[0..STACK_SIZE] of byte;
+  pid: TPid;
+  mountpoint: array[0..100] of Char;
+  flags: LongInt;
+
 
 // TODO: To check if binary fits
 procedure LoadBinary(filemem: PChar; path: AnsiString);
@@ -66,62 +67,14 @@ begin
   Close(FBinary);
 end;
 
-function clone(func:TCloneFunc;sp:pointer;flags:longint;args:pointer):longint;
+function VMMLoop(args: Pointer): LongInt; cdecl;
 begin
-//  if ((Pointer(func)=nil) or (sp=nil)) then
-//    exit(-1);
-{$ASMMODE ATT}
-  asm
-        { Insert the argument onto the new stack. }
-        movl    sp,%rsi
-        subl    $16,%rsi
-        movl    args,%rax
-        movl    %rax,8(%rsi)
-
-        { Save the function pointer as the zeroth argument.
-          It will be popped off in the child in the ebx frobbing below. }
-        movl    func,%rax
-        movl    %rax,0(%rsi)
-
-        { Do the system call }
-        pushl   %rdi
-        movl    flags,%rdi
-        movl    $56,%rax
-        syscall
-        popl    %rdi
-        test    %rax,%rax
-        jnz     .Lclone_end
-
-        { We're in the new thread }
-        subl    %rbp,%rbp       { terminate the stack frame }
-        call    *%rdi
-        { exit process }
-        movl    %rax,%rdi
-        movl    $60,%rax
-        syscall
-.Lclone_end:
-        movl    %rax,__RESULT
+  Result := 0;
+  if args <> nil then
+  begin
+    chroot(args);
+    chdir('/');
   end;
-end;
-
-function chroot(path: pchar):longint;
-begin
-{$ASMMODE ATT}
-  asm
-        { Do the system call }
-        pushl   %rdi
-        movl    path,%rdi
-        movl    $161,%rax
-        syscall
-        popl    %rdi
-        movl    %rax,__RESULT
-  end;
-end;
-
-function VMMLoop(arg: Pointer): LongInt;cdecl;
-begin
-  chroot('./mountpoint');
-  chdir('/');
   while true do
   begin
     if not RunVCPU(@guestvcpu, exit_reason) then
@@ -173,17 +126,28 @@ begin
     end;
   end;
 end;
-
-var pid: TPid;
-
+var
+  i: LongInt;
 begin
   ModeDebug := false;
+  flags := 0;
   for ret := 1 to ParamCount do
   begin
     if ParamStr(ret) = '-debug' then
     begin
       ModeDebug := true;
       DbgLocalPort := StrtoInt(ParamStr(ret+1));
+    end else if ParamStr(ret) = '-mountpoint' then
+    begin
+      flags := flags or CLONE_NEWNS;
+      for i:=1 to Length(ParamStr(ret+1)) do
+      begin
+        mountpoint[i-1] := Char(ParamStr(ret+1)[i]);
+      end;
+      mountpoint[i] := #0;
+    end else if ParamStr(ret) = '-newpid' then
+    begin
+      flags := flags or CLONE_NEWPID;
     end;
   end;
   If not KvmInit then
@@ -247,7 +211,7 @@ begin
       Exit;
     end;
   end;
-  pid := clone(VMMLoop, @stack[STACK_SIZE], CLONE_NEWPID or CLONE_VM or CLONE_FILES or CLONE_NEWNS or SIGCHLD, nil);
+  pid := clone(VMMLoop, @stack[STACK_SIZE], CLONE_VM or CLONE_FILES or SIGCHLD or flags, @mountpoint[0]);
   FpWaitPid(pid, nil, 0);
   Fpmunmap(mem, GUEST_ADDR_MEM_SIZE * 2);
   fpClose(kvmfd);
