@@ -1,0 +1,21 @@
+INPUT(
+/root/fpc-for-torov/rtl/linux/si_prc.o
+WriteFile.o
+../../src/rtl/ToroVSys.o
+/root/fpc-for-torov/rtl/linux/system.o
+/root/fpc-for-torov/rtl/objpas/objpas.o
+/root/fpc-for-torov/rtl/unix/baseunix.o
+/root/fpc-for-torov/rtl/unix/unixtype.o
+)
+SECTIONS
+{
+  .start : { *(.start) }
+  .text : { *(.text*) }
+  .rodata : { *(.rodata) }
+  .data : { *(.data) }
+  .fpcdata           :
+  {
+    KEEP (*(.fpc .fpc.n_version .fpc.n_links))
+  }
+  .threadvar : { *(.threadvar .threadvar.* .gnu.linkonce.tv.*) }
+}
