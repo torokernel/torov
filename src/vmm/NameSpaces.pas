@@ -1,7 +1,7 @@
 // NameSpaces.pas
 //
 // This unit implements the minimal infrastructure that allows the vmm
-// to be isoalted in term of namespaces.
+// to be isolated in term of namespaces.
 //
 // Copyright (c) 2021 Matias Vara <matiasevara@torokernel.io>
 // All Rights Reserved
