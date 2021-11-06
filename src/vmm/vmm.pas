@@ -131,6 +131,12 @@ var
 begin
   ModeDebug := false;
   flags := 0;
+  if ParamCount = 0 then
+  begin
+    WriteLn('Usage: vmm Binary [Options]');
+    WriteLn('e.g., ./vmm HellWorld -newpid');
+    Exit;
+  end;
   for ret := 1 to ParamCount do
   begin
     if ParamStr(ret) = '-debug' then
