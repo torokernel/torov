@@ -61,12 +61,11 @@ target remote localhost:1234
 c
 ```
 ## Profiling HelloWorld
-In the folder `torov/src/vmm`, you can find the script `Profile.sh` that is meant to measure the running time of the HelloWorld example. To run it, you have just to save the binary in this directory, and then run the script as follows:
+In the folder `torov/src/vmm`, you can find the script `profile.py` that is meant to measure the running time of the HelloWorld example. To run it, you have just to save the binary in this directory, and then run the script as follows:
 ```bash
-./Profile.sh
-Hello World, I am ToroV!
-Average time in 100 executions: 6 ms
+python3.5 1000 HelloWorld
 ```
-This test measures the average running time of 100 executions of the HelloWorld example and outputs the result.
+In this case, the test measures the average running time of 1000 executions of the HelloWorld example. The scripts ouputs a gnuplot command to plot the result.
+![plot](https://github.com/torokernel/torov/raw/fixfornamespace/examples/HelloWorld/HelloWorld.png)
 ## License
 GPLv3
