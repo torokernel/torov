@@ -25,11 +25,12 @@ var
   FD : Cint;
 
 begin
-  FD := fpOpen ('/test',O_WrOnly or O_Creat);
+  FD := fpOpen ('/test', O_WrOnly or O_Creat);
   if FD > 0 then
   begin
-    if fpwrite (FD,'hola', 4) <> 4 then
-      Writeln ('Error when writing to file !');
+    WriteLn('Writting ...');
+    if fpwrite (FD, 'hola', 4) <> 4 then
+      Writeln('Error when writing to file !');
     fpClose(FD);
   end;
 end.
