@@ -1,6 +1,6 @@
 app="$1";
 appsrc="$app.pas";
-fpcrtlsource="$(eval echo ~$USER)/fpc-3.2.0-for-torov/rtl/";
+fpcrtlsource="$(eval echo ~$USER)/fpc-for-torov/rtl/";
 # change to -O- for debugging
 # compileropti="-g"
 compileropti="-O2 -v0"

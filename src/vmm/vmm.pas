@@ -21,16 +21,34 @@
 //
 program vmm;
 
-{$asmmode intel}
 {$mode delphi}
-{$MACRO ON}
 
-uses BaseUnix, Linux, Kvm, sysutils, HyperCalls, Gdbstub;
+uses BaseUnix, Linux, Kvm, sysutils, HyperCalls, Gdbstub, NameSpaces;
 
 const
   GUEST_ADDR_START = 0;
   GUEST_ADDR_MEM_SIZE = $200000;
   guestinitialregs : kvm_regs = ( rsp : GUEST_ADDR_MEM_SIZE; rip : GUEST_ADDR_START; rflags : 2 );
+  STACK_SIZE = 2048;
+
+var
+  ret: LongInt;
+  mem: PChar;
+  guest: VM;
+  guestVCPU: VCPU;
+  exit_reason: LongInt;
+  region, heap: kvm_userspace_memory_region;
+  regs: kvm_regs;
+  ioexit: PKvmRunExitIO;
+  value: ^QWORD;
+  ModeDebug: Boolean;
+  DbgLocalPort: LongInt;
+  debugexit: pkvm_debug_exit_arch;
+  stack: array[0..STACK_SIZE] of byte;
+  pid: TPid;
+  mountpoint: array[0..100] of Char;
+  flags: LongInt;
+
 
 // TODO: To check if binary fits
 procedure LoadBinary(filemem: PChar; path: AnsiString);
@@ -49,27 +67,93 @@ begin
   Close(FBinary);
 end;
 
+function VMMLoop(args: Pointer): LongInt; cdecl;
+begin
+  Result := 0;
+  if args <> nil then
+  begin
+    chroot(args);
+    chdir('/');
+  end;
+  while true do
+  begin
+    if not RunVCPU(@guestvcpu, exit_reason) then
+    begin
+      WriteLn('KVM_RUN');
+      Break;
+    end;
+    if exit_reason = KVM_EXIT_HLT then
+    begin
+      //WriteLn('HLT!');
+      ret := GetRegisters(@guestvcpu, @regs);
+      if ret = -1 then
+      begin
+        WriteLn('KVM_GET_REGS');
+        Break;
+      end;
+      if ModeDebug then
+        BPHandler(@guestvcpu);
+      //WriteLn('Halt instruction, rax: 0x', IntToHex(regs.rax, 4), ', rbx: 0x', IntToHex(regs.rbx, 4), ', rip: 0x', IntToHex(regs.rip, 4));
+      Break;
+    end else if exit_reason = KVM_EXIT_MMIO then
+    begin
+      continue;
+    end else if exit_reason = KVM_EXIT_IO then
+    begin
+      ioexit := PKvmRunExitIO(@guestvcpu.run.padding_exit[0]);
+      value := Pointer(PtrUInt(guestvcpu.run) + ioexit.data_offset);
+      ret := GetRegisters(@guestvcpu, @regs);
+      // WriteLn('IO: port: 0x', IntToHex(ioexit.port, 4), ', value: 0x', IntToHex(value^, 4), ', rbx: 0x', IntToHex(regs.rbx, 4), ', rcx: 0x', IntToHex(regs.rcx, 4));
+      ret := HyperCallEntry(value^, @regs, @region, @heap);
+      // set returned value
+      regs.rax := ret;
+      ConfigureRegs(@guestvcpu, @regs);
+      continue;
+    end else if exit_reason = KVM_EXIT_DEBUG then
+    begin
+      debugexit := pkvm_debug_exit_arch(@guestvcpu.run.padding_exit[0]);
+      // WriteLn('Exit due to KVM_EXIT_DEBUG');
+      if debugexit^.exception = 3 then
+        BPHandler(@guestvcpu)
+      else
+        StepHandler(@guestvcpu);
+      continue;
+    end else
+    begin
+      ret := GetRegisters(@guestvcpu, @regs);
+      WriteLn('exit_reason: rip: 0x', IntToHex(regs.rip, 4), ', reason: ', exit_reason);
+      Break;
+    end;
+  end;
+end;
 var
-  ret: LongInt;
-  mem: PChar;
-  guest: VM;
-  guestVCPU: VCPU;
-  exit_reason: LongInt;
-  region, heap: kvm_userspace_memory_region;
-  regs: kvm_regs;
-  ioexit: PKvmRunExitIO;
-  value: ^QWORD;
-  ModeDebug: Boolean;
-  DbgLocalPort: LongInt;
-  debugexit: pkvm_debug_exit_arch;
+  i: LongInt;
 begin
   ModeDebug := false;
+  flags := 0;
+  if ParamCount = 0 then
+  begin
+    WriteLn('Usage: vmm Binary [Options]');
+    WriteLn('e.g., ./vmm HellWorld -newpid');
+    Exit;
+  end;
   for ret := 1 to ParamCount do
   begin
     if ParamStr(ret) = '-debug' then
     begin
       ModeDebug := true;
       DbgLocalPort := StrtoInt(ParamStr(ret+1));
+    end else if ParamStr(ret) = '-mountpoint' then
+    begin
+      flags := flags or CLONE_NEWNS;
+      for i:=1 to Length(ParamStr(ret+1)) do
+      begin
+        mountpoint[i-1] := Char(ParamStr(ret+1)[i]);
+      end;
+      mountpoint[i] := #0;
+    end else if ParamStr(ret) = '-newpid' then
+    begin
+      flags := flags or CLONE_NEWPID;
     end;
   end;
   If not KvmInit then
@@ -133,56 +217,8 @@ begin
       Exit;
     end;
   end;
-  while true do
-  begin
-    if not RunVCPU(@guestvcpu, exit_reason) then
-    begin
-      WriteLn('KVM_RUN');
-      Break;
-    end;
-    if exit_reason = KVM_EXIT_HLT then
-    begin
-      //WriteLn('HLT!');
-      ret := GetRegisters(@guestvcpu, @regs);
-      if ret = -1 then
-      begin
-        WriteLn('KVM_GET_REGS');
-        Break;
-      end;
-      if ModeDebug then
-        BPHandler(@guestvcpu);
-      //WriteLn('Halt instruction, rax: 0x', IntToHex(regs.rax, 4), ', rbx: 0x', IntToHex(regs.rbx, 4), ', rip: 0x', IntToHex(regs.rip, 4));
-      Break;
-    end else if exit_reason = KVM_EXIT_MMIO then
-    begin
-      continue;
-    end else if exit_reason = KVM_EXIT_IO then
-    begin
-      ioexit := PKvmRunExitIO(@guestvcpu.run.padding_exit[0]);
-      value := Pointer(PtrUInt(guestvcpu.run) + ioexit.data_offset);
-      ret := GetRegisters(@guestvcpu, @regs);
-      // WriteLn('IO: port: 0x', IntToHex(ioexit.port, 4), ', value: 0x', IntToHex(value^, 4), ', rbx: 0x', IntToHex(regs.rbx, 4), ', rcx: 0x', IntToHex(regs.rcx, 4));
-      ret := HyperCallEntry(value^, @regs, @region, @heap);
-      // set returned value
-      regs.rax := ret;
-      ConfigureRegs(@guestvcpu, @regs);
-      continue;
-    end else if exit_reason = KVM_EXIT_DEBUG then
-    begin
-      debugexit := pkvm_debug_exit_arch(@guestvcpu.run.padding_exit[0]);
-      // WriteLn('Exit due to KVM_EXIT_DEBUG');
-      if debugexit^.exception = 3 then
-        BPHandler(@guestvcpu)
-      else
-        StepHandler(@guestvcpu);
-      continue;
-    end else
-    begin
-      ret := GetRegisters(@guestvcpu, @regs);
-      WriteLn('exit_reason: rip: 0x', IntToHex(regs.rip, 4), ', reason: ', exit_reason);
-      Break;
-    end;
-  end;
+  pid := clone(VMMLoop, @stack[STACK_SIZE], CLONE_VM or CLONE_FILES or SIGCHLD or flags, @mountpoint[0]);
+  FpWaitPid(pid, nil, 0);
   Fpmunmap(mem, GUEST_ADDR_MEM_SIZE * 2);
   fpClose(kvmfd);
 end.

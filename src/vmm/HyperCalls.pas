@@ -34,6 +34,7 @@ const
   MAX_NR_HYPER = 500;
   syscall_nr_ioctl = 16;
   syscall_nr_read  = 0;
+  syscall_nr_open  = 2;
   syscall_nr_write = 1;
   syscall_nr_close = 3;
   syscall_nr_getrlimit = 97;
@@ -74,6 +75,11 @@ var
 begin
   tmp := PChar(region^.userspace_addr + regs^.rcx - region^.guest_phys_addr);
   writeln(tmp);
+end;
+
+function HyperCallOpen(regs: pkvmregs; region: pkvm_user_memory_region): LongInt;
+begin
+  Result := fpOpen(PChar(region^.userspace_addr - region^.guest_phys_addr + regs^.rdi), regs^.rsi);
 end;
 
 function HyperCallWrite(regs: pkvmregs; region: pkvm_user_memory_region): LongInt;
@@ -158,6 +164,7 @@ initialization
   end;
   HyperCallsAr[syscall_nr_close] := @HyperCallClose;
   HyperCallsAr[syscall_nr_read] := @HyperCallRead;
+  HyperCallsAr[syscall_nr_open] := @HyperCallOpen;
   HyperCallsAr[syscall_nr_write] := @HyperCallWrite;
   HyperCallsAr[syscall_nr_ioctl] := @HyperCallIOCtl;
   HyperCallsAr[syscall_nr_getrlimit] := @HyperCallGetRLimit;
