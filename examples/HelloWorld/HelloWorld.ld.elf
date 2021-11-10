@@ -1,11 +1,9 @@
 INPUT(
-/root/fpc-for-torov/rtl/linux/si_prc.o
+/home/debian/fpc-for-torov/rtl/linux/si_prc.o
 HelloWorld.o
 ../../src/rtl/ToroVSys.o
-/root/fpc-for-torov/rtl/linux/system.o
-/root/fpc-for-torov/rtl/objpas/objpas.o
-/root/fpc-for-torov/rtl/unix/baseunix.o
-/root/fpc-for-torov/rtl/unix/unixtype.o
+/home/debian/fpc-for-torov/rtl/linux/system.o
+/home/debian/fpc-for-torov/rtl/objpas/objpas.o
 )
 SECTIONS
 {
