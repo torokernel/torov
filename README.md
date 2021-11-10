@@ -15,8 +15,12 @@ ToroV provides the following features:
 In ToroV, applications trigger a VMEXIT by using the **out** instruction. This instruction replaces the use of the **syscall** instruction. This requires that applications are compiled with a STDLIB in which the syscall instruction has been replaced.
 
 ## How to try it?
-You require a Linux host with KVM to run the VMM.
+You require a Linux host with KVM to run the VMM. To check if KVM is enabled, you can execute **lsmod** to list the loaded module. If KVM is in the list, you can move forward, if not, you need to first install it.
 
+### Step 0. Clone ToroV
+```bash
+git clone git@github.com:torokernel/torov.git
+```
 ### Step 1. Install Freepascal 3.2.0
 ```bash
 wget https://sourceforge.net/projects/lazarus/files/Lazarus%20Linux%20amd64%20DEB/Lazarus%202.0.10/fpc-laz_3.2.0-1_amd64.deb/download
@@ -34,9 +38,16 @@ Go to `torov/examples` and edit `build.sh` to set the correct paths to fpc. The 
 Go to `torov/src/vmm` and run `build.sh`. This generates the binary named `vmm` which contains the VMM.
 
 ### Step 5. Build HelloWorld example
-Go to `torov/examples/HelloWorld/HelloWorld.ld.elf` and edit the path of the freepascal compiler. Then, run:
+First, go to `torov/src/rtl` and execute:
+```bash
+fpc -s ToroVSys.pas
+```
+Second, go to `torov/examples` and execute:
 ```bash
 nasm -f elf64 boot.s -o boot.o
+```
+Finally, go to `torov/examples/HelloWorld/HelloWorld.ld.elf` and edit the path to freepascal RTL objects. Then, run:
+```bash
 ../build.sh HelloWorld
 ```
 If the command successes, it generates three files: HelloWorld.elf, HelloWorld.bin and HelloWorld.dbg. You can run this example by running:
