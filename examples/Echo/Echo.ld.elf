@@ -10,6 +10,7 @@ Echo.o
 )
 SECTIONS
 {
+  . = 0x400200;
   .start : { *(.start) }
   .text : { *(.text*) }
   .rodata : { *(.rodata) }

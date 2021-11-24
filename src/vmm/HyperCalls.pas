@@ -24,7 +24,7 @@ unit HyperCalls;
 
 interface
 
-uses Kvm, BaseUnix, Sockets;
+uses Kvm, BaseUnix, Sockets, sysutils;
 
 function HyperCallEntry(nr: LongInt; regs: pkvmregs; region, heap: pkvm_user_memory_region): LongInt;
 
@@ -144,7 +144,7 @@ end;
 function HyperCallEntry(nr: LongInt; regs: pkvmregs; region, heap: pkvm_user_memory_region): LongInt;
 begin
   Result := -1;
-  //WriteLn('HyperCall:', nr);
+  // WriteLn('HyperCall: ', nr, ', rip: 0x', IntToHex(regs^.rip, 4));
   if nr < MAX_NR_HYPER then
   begin
     if nr = syscall_nr_mmap then

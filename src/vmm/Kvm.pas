@@ -66,6 +66,8 @@ const
   KVM_GUESTDBG_USE_SW_BP = $10000;
   KVM_SET_GUEST_DEBUG = $4048ae9b;
 
+  PAGE_SIZE = $200000;
+
 type
   pkvm_user_memory_region = ^kvm_userspace_memory_region;
   kvm_userspace_memory_region = record
@@ -213,7 +215,7 @@ function KvmInit: Boolean;
 function CreateVM: LongInt;
 function SetUserMemoryRegion(vmfd: LongInt; region: pkvm_user_memory_region): LongInt;
 function CreateVCPU(vmfd: LongInt; vcpu: PVCPU): Boolean;
-function ConfigureSregs(vcpu: PVCPU): Boolean;
+function ConfigureSregs(vcpu: PVCPU; nr: LongInt): Boolean;
 function ConfigureRegs(vcpu: PVCPU;regs: pkvmregs): Boolean;
 function RunVCPU(vcpu: PVCPU; Out Reason: Longint): Boolean;
 function GetRegisters(vcpu: PVCPU; regs: pkvmregs): LongInt;
@@ -241,10 +243,11 @@ begin
   Result := fpIOCtl(vmfd, KVM_SET_USER_MEMORY_REGION, region);
 end;
 
-procedure SetupLongMode(mem: Pointer; sregs: pkvm_sregs);
+procedure SetupLongMode(mem: Pointer; sregs: pkvm_sregs; nr: Longint);
 var
   pml4, pdpt, pd: ^QWORD;
   seg: kvm_segment;
+  i, page: LongInt;
 begin
   pml4 := Pointer(PtrUInt(mem)+$2000);
   pdpt := Pointer(PtrUInt(mem)+$3000);
@@ -252,10 +255,16 @@ begin
 
   pml4^ := PDE64_PRESENT or PDE64_RW or PDE64_USER or $3000;
   pdpt^ := PDE64_PRESENT or PDE64_RW or PDE64_USER or $4000;
-  pd^ := PDE64_PRESENT or PDE64_RW or PDE64_USER or PDE64_PS;
-  // TODO: to check this
-  Inc(pd);
-  pd^ := PDE64_PRESENT or PDE64_RW or PDE64_USER or PDE64_PS or $200000;
+
+  page := 0;
+
+  // map nr pages
+  for i := 0 to nr-1 do
+  begin
+    pd^ := PDE64_PRESENT or PDE64_RW or PDE64_USER or PDE64_PS or page;
+    Inc(page, PAGE_SIZE);
+    Inc(pd);
+  end;
 
   // this supposes that we start at 0
   sregs.cr3 := $2000;
@@ -395,7 +404,7 @@ begin
   Result := true;
 end;
 
-function ConfigureSregs(vcpu: PVCPU): Boolean;
+function ConfigureSregs(vcpu: PVCPU; nr: LongInt): Boolean;
 var
   ret: LongInt;
 begin
@@ -406,7 +415,7 @@ begin
     WriteLn('ConfigureSregs: Error at KVM_GET_SREGS');
     Exit;
   end;
-  SetupLongmode(vcpu.vm.mem, @vcpu.sregs);
+  SetupLongmode(vcpu.vm.mem, @vcpu.sregs, nr);
   ret := fpIOCtl(vcpu.vcpufd, KVM_SET_SREGS, @vcpu.sregs);
   if ret = -1 then
   begin

@@ -4,8 +4,9 @@ ToroV enables applications to run as Virtual Machines. It is a Virtual Machine M
 ## Architecture
 The architecture is made of three components: the guest, the Runtime Library (RTL) and the VMM. The guest is a normal user application that is compiled with the RTL. The RTL contains the required code to run the application as a guest. For example, it allows to correctly boots the application. The guest is an user application that requires services from the OS by using syscalls. In ToroV, the VMM acts as the OS that provides such services. When the application guest invokes a syscall, this produces a VMExit that the VMM catches, processes, and finally returns to the application. This technology is similar than gVisor. The main difference with ToroV is that in gVisor syscalls are first trapped by the guest os, and then, forward them to the host. In ToroV, syscalls are trapped by the host first.
 
-## Benefits
-ToroV provides the following features:
+## Features
+- Configurable syscalls per application
+- Fast migration of applications
 - Fast booting time
 - Reduced memory footprint
 - POSIX interface
@@ -86,7 +87,7 @@ In the folder `torov/src/vmm`, you can find the script `profile.py` that is mean
 ```bash
 python3.5 1000 HelloWorld
 ```
-In this case, the test measures the average running time of 1000 executions of the HelloWorld example. The scripts ouputs a gnuplot command to plot the result.
-![plot](https://github.com/torokernel/torov/raw/fixfornamespace/examples/HelloWorld/HelloWorld.png)
+In this case, the test measures the average running time of 1000 executions of the HelloWorld example. The scripts outputs a gnuplot command to plot the result.
+![plot](https://github.com/torokernel/torov/raw/master/examples/HelloWorld/HelloWorld.png)
 ## License
 GPLv3

@@ -26,9 +26,14 @@ program vmm;
 uses BaseUnix, Linux, Kvm, sysutils, HyperCalls, Gdbstub, NameSpaces;
 
 const
-  GUEST_ADDR_START = 0;
-  GUEST_ADDR_MEM_SIZE = $200000;
-  guestinitialregs : kvm_regs = ( rsp : GUEST_ADDR_MEM_SIZE; rip : GUEST_ADDR_START; rflags : 2 );
+  // TODO: get this addr from the elf
+  GUEST_ADDR_START = $400200;
+  GUEST_ADDR_MEM_SIZE = $800000;
+  GUEST_HEAP_ADDR = $600000;
+  GUEST_HEAP_SIZE = $200000;
+
+  // keep 256 bytes at the end of the stack
+  guestinitialregs : kvm_regs = ( rsp : GUEST_ADDR_MEM_SIZE-256; rip : GUEST_ADDR_START; rflags : 2 );
   STACK_SIZE = 2048;
 
 var
@@ -93,7 +98,7 @@ begin
       end;
       if ModeDebug then
         BPHandler(@guestvcpu);
-      //WriteLn('Halt instruction, rax: 0x', IntToHex(regs.rax, 4), ', rbx: 0x', IntToHex(regs.rbx, 4), ', rip: 0x', IntToHex(regs.rip, 4));
+      WriteLn('Halt instruction, rax: 0x', IntToHex(regs.rax, 4), ', rbx: 0x', IntToHex(regs.rbx, 4), ', rip: 0x', IntToHex(regs.rip, 4));
       Break;
     end else if exit_reason = KVM_EXIT_MMIO then
     begin
@@ -121,7 +126,7 @@ begin
     end else
     begin
       ret := GetRegisters(@guestvcpu, @regs);
-      WriteLn('exit_reason: rip: 0x', IntToHex(regs.rip, 4), ', reason: ', exit_reason);
+      WriteLn('exit_reason: rip: 0x', IntToHex(regs.rip, 4), ' rbp: 0x', IntToHex(regs.rbp,4), ', reason: ', exit_reason);
       Break;
     end;
   end;
@@ -168,18 +173,19 @@ begin
     Exit;
   end;
   // allocate memory for guest
-  mem := fpmmap(nil, GUEST_ADDR_MEM_SIZE * 2, PROT_READ or PROT_WRITE, MAP_SHARED or MAP_ANONYMOUS, -1, 0);
+  mem := fpmmap(nil, GUEST_ADDR_MEM_SIZE, PROT_READ or PROT_WRITE, MAP_SHARED or MAP_ANONYMOUS, -1, 0);
   if mem = nil then
   begin
     WriteLn('Error at Allocating memory');
     Exit;
   end;
   guest.mem := mem;
-  LoadBinary(mem, Paramstr(1));
+  LoadBinary(PChar(PtrUInt(mem)+GUEST_ADDR_START), Paramstr(1));
+
   // set user memory region
   region.slot := 0;
-  region.guest_phys_addr := GUEST_ADDR_START;
-  region.memory_size := GUEST_ADDR_MEM_SIZE;
+  region.guest_phys_addr := 0;
+  region.memory_size := GUEST_ADDR_MEM_SIZE - GUEST_HEAP_SIZE;
   region.userspace_addr := QWORD(mem);
   ret := SetUserMemoryRegion(guest.vmfd, @region);
   if ret = -1 then
@@ -187,11 +193,12 @@ begin
     WriteLn('Error at KVM_SET_USER_MEMORY_REGION');
     Exit;
   end;
+
   // allocate heap
   heap.slot := 1;
-  heap.guest_phys_addr := GUEST_ADDR_START + GUEST_ADDR_MEM_SIZE;
-  heap.memory_size := GUEST_ADDR_MEM_SIZE;
-  heap.userspace_addr := QWORD(mem) + GUEST_ADDR_MEM_SIZE;
+  heap.guest_phys_addr := GUEST_ADDR_MEM_SIZE - GUEST_HEAP_SIZE;
+  heap.memory_size := GUEST_HEAP_SIZE;
+  heap.userspace_addr := QWORD(mem) + GUEST_HEAP_ADDR;
   ret := SetUserMemoryRegion(guest.vmfd, @heap);
   if ret = -1 then
   begin
@@ -203,7 +210,8 @@ begin
   if not CreateVCPU(guest.vmfd, @guestvcpu) then
     Exit;
   // configure system registers
-  if not ConfigureSregs(@guestvcpu) then
+  // map virtual guest memory
+  if not ConfigureSregs(@guestvcpu, GUEST_ADDR_MEM_SIZE div PAGE_SIZE) then
     Exit;
   // configure general purpose registers
   if not ConfigureRegs(@guestvcpu, @guestinitialregs) then
@@ -219,6 +227,6 @@ begin
   end;
   pid := clone(VMMLoop, @stack[STACK_SIZE], CLONE_VM or CLONE_FILES or SIGCHLD or flags, @mountpoint[0]);
   FpWaitPid(pid, nil, 0);
-  Fpmunmap(mem, GUEST_ADDR_MEM_SIZE * 2);
+  Fpmunmap(mem, GUEST_ADDR_MEM_SIZE);
   fpClose(kvmfd);
 end.
