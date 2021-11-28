@@ -53,15 +53,11 @@ Finally, go to `torov/examples/HelloWorld/HelloWorld.ld.elf` and edit the path t
 ```
 If the command successes, it generates three files: HelloWorld.elf, HelloWorld.bin and HelloWorld.dbg. You can run this example by running:
 ```bash
-../../src/vmm/vmm HelloWorld.bin
+../../src/vmm/vmm ./helloworld.json
 ```
 You will get something like:
 ```bash
 Hello World, I am ToroV!
-Press a key and ENTER to finish
-a
-You pressed: a
-Halt instruction, rax: 0x30A56, rbx: 0x2F8C0, rip: 0x0156
 ```
 ## How to debug an application
 You can debug your application by using a gdb client. To do this, follow the steps:
@@ -71,9 +67,9 @@ Edit `torov/examples/build.sh`, uncomment line 5, and comment line 6. Then, comp
 ../build.sh HelloWorld
 ```
 ### Step 2. Run the VMM with a GdbStub
-Run the VMM with the gdbstub:
+You have to edit helloworld.json and set the `Allowed` to true in the debug section. Then, run the VMM with the gdbstub:
 ```bash
-../../src/vmm/vmm HelloWorld -debug 1234
+../../src/vmm/vmm helloworld.json
 ```
 The gdb server waits for the gdb client at port 1234.
 ### Step 3. Launch the gdb client
@@ -82,10 +78,10 @@ gdb HelloWorld.dbg
 target remote localhost:1234
 c
 ```
-## Profiling HelloWorld
-In the folder `torov/src/vmm`, you can find the script `profile.py` that is meant to measure the running time of the HelloWorld example. To run it, you have just to save the binary in this directory, and then run the script as follows:
+## Profiling
+In the folder `torov/src/vmm`, you can find the script `profile.py` that is meant to measure the running time of any application. To run it, you have just to save the binary and the correspoding json in this directory, and then run the script as follows:
 ```bash
-python3.5 1000 HelloWorld
+python3.5 ./profile.py 1000 helloworld.json
 ```
 In this case, the test measures the average running time of 1000 executions of the HelloWorld example. The scripts outputs a gnuplot command to plot the result.
 ![plot](https://github.com/torokernel/torov/raw/master/examples/HelloWorld/HelloWorld.png)

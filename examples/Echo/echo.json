@@ -1,0 +1,52 @@
+{
+    "Binary" : "Echo.bin",
+    "MountPoint" : "./mountpoint",
+    "Newpid" : "False",
+    "Debug" : 
+        {
+            "Allowed" : "False",
+            "Port" : "1234"
+        },
+    "Hypercalls" : [
+        {
+            "Name" : "Ioctl",
+            "Allowed" : "True"
+        },
+        {
+            "Name" : "Write",
+            "Allowed" : "True"
+	    },
+        {
+            "Name" : "Socket",
+            "Allowed" : "True"
+        },
+        {
+            "Name" : "Listen",
+            "Allowed" : "True"
+	    },
+        {
+            "Name" : "Accept",
+            "Allowed" : "True"
+	    },
+        {
+            "Name" : "Sendto",
+            "Allowed" : "True"
+	    },
+        {
+            "Name" : "Recvfrom",
+            "Allowed" : "True"
+	    },
+        {
+            "Name" : "Close",
+            "Allowed" : "True"
+	    },
+        {
+            "Name" : "Bind",
+            "Allowed" : "True"
+	    },
+        {
+            "Name" : "Getrlimit",
+            "Allowed" : "True"
+        }
+	]
+}

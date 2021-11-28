@@ -1,0 +1,32 @@
+{
+    "Binary" : "WriteFile.bin",
+    "MountPoint" : "./mountpoint",
+    "Newpid" : "True",
+    "Debug" : 
+        {
+            "Allowed" : "False",
+            "Port" : "1234"
+        },
+    "Hypercalls" : [
+        {
+            "Name" : "Ioctl",
+            "Allowed" : "True"
+        },
+        {
+            "Name" : "Open",
+            "Allowed" : "True"
+        }, 
+        {
+            "Name" : "Close",
+            "Allowed" : "True"
+	    },
+        {
+            "Name" : "Write",
+            "Allowed" : "True"
+	    },
+        {
+            "Name" : "Getrlimit",
+            "Allowed" : "True"
+        }
+	]
+}

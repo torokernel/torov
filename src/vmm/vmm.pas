@@ -23,17 +23,14 @@ program vmm;
 
 {$mode delphi}
 
-uses BaseUnix, Linux, Kvm, sysutils, HyperCalls, Gdbstub, NameSpaces;
+uses BaseUnix, Linux, Kvm, Classes, strutils, sysutils,
+     HyperCalls, Gdbstub, NameSpaces, fpjson, jsonparser;
 
 const
-  // TODO: get this addr from the elf
   GUEST_ADDR_START = $400200;
   GUEST_ADDR_MEM_SIZE = $800000;
   GUEST_HEAP_ADDR = $600000;
   GUEST_HEAP_SIZE = $200000;
-
-  // keep 256 bytes at the end of the stack
-  guestinitialregs : kvm_regs = ( rsp : GUEST_ADDR_MEM_SIZE-256; rip : GUEST_ADDR_START; rflags : 2 );
   STACK_SIZE = 2048;
 
 var
@@ -53,6 +50,15 @@ var
   pid: TPid;
   mountpoint: array[0..100] of Char;
   flags: LongInt;
+
+  // keep 256 bytes at the end of the stack
+  guestinitialregs : kvm_regs = ( rsp : GUEST_ADDR_MEM_SIZE-256; rip : GUEST_ADDR_START; rflags : 2 );
+
+  i: LongInt;
+  jData: TJSONData;
+  BinaryPath, hypc, Mountpoints: String;
+  Input: TStream;
+  jArray: TJSONArray;
 
 
 // TODO: To check if binary fits
@@ -98,7 +104,7 @@ begin
       end;
       if ModeDebug then
         BPHandler(@guestvcpu);
-      WriteLn('Halt instruction, rax: 0x', IntToHex(regs.rax, 4), ', rbx: 0x', IntToHex(regs.rbx, 4), ', rip: 0x', IntToHex(regs.rip, 4));
+      // WriteLn('Halt instruction, rax: 0x', IntToHex(regs.rax, 4), ', rbx: 0x', IntToHex(regs.rbx, 4), ', rip: 0x', IntToHex(regs.rip, 4));
       Break;
     end else if exit_reason = KVM_EXIT_MMIO then
     begin
@@ -131,36 +137,99 @@ begin
     end;
   end;
 end;
-var
-  i: LongInt;
+
 begin
-  ModeDebug := false;
-  flags := 0;
-  if ParamCount = 0 then
+  if ParamCount < 1 then
   begin
-    WriteLn('Usage: vmm Binary [Options]');
-    WriteLn('e.g., ./vmm HellWorld -newpid');
+    WriteLn('Usage: ./vmm [json file]');
     Exit;
   end;
-  for ret := 1 to ParamCount do
+  ModeDebug := false;
+  flags := 0;
+  Input := TFileStream.Create(ParamStr(1), fmOpenRead or fmShareDenyWrite);
+  jData := GetJSON(Input);
+  if jData.FindPath('Binary') = Nil then
   begin
-    if ParamStr(ret) = '-debug' then
+    WriteLn('JSON does not contain the name of the binary');
+    Exit;
+  end;
+  if jData.FindPath('Startaddr') <> Nil then
+  begin
+    guestinitialregs.rip := Hex2Dec(jData.FindPath('Startaddr').AsString);
+  end;
+  BinaryPath := jData.FindPath('Binary').AsString;
+  if jData.FindPath('MountPoint') <> nil then
+  begin
+    Mountpoints := jData.FindPath('MountPoint').AsString;
+    flags := flags or CLONE_NEWNS;
+    for i := 1 to Length(Mountpoints) do
     begin
-      ModeDebug := true;
-      DbgLocalPort := StrtoInt(ParamStr(ret+1));
-    end else if ParamStr(ret) = '-mountpoint' then
-    begin
-      flags := flags or CLONE_NEWNS;
-      for i:=1 to Length(ParamStr(ret+1)) do
-      begin
-        mountpoint[i-1] := Char(ParamStr(ret+1)[i]);
-      end;
-      mountpoint[i] := #0;
-    end else if ParamStr(ret) = '-newpid' then
+      mountpoint[i-1] := Char(Mountpoints[i]);
+    end;
+    mountpoint[i] := #0;
+  end;
+  if jData.FindPath('Newpid') <> nil then
+  begin
+    if jData.FindPath('Newpid').AsBoolean then
     begin
       flags := flags or CLONE_NEWPID;
     end;
   end;
+  jArray := TJSONArray(jData.FindPath('Hypercalls'));
+  for i := 0 to Pred(jArray.Count) do
+  begin
+    if jData.FindPath('Hypercalls['+IntToStr(i)+'].Allowed').AsBoolean then
+    begin
+      hypc := jData.FindPath('Hypercalls['+IntToStr(i)+'].Name').AsString;
+      if hypc = 'Write' then
+      begin
+        EnableHyperCall(syscall_nr_write);
+      end else if hypc = 'Ioctl' then
+      begin
+        EnableHyperCall(syscall_nr_ioctl);
+      end else if hypc = 'Getrlimit' then
+      begin
+        EnableHyperCall(syscall_nr_getrlimit);
+      end else if hypc = 'Socket' then
+      begin
+        EnableHyperCall(syscall_nr_socket);
+      end else if hypc = 'Bind' then
+      begin
+        EnableHyperCall(syscall_nr_bind);
+      end else if hypc = 'Sendto' then
+      begin
+        EnableHyperCall(syscall_nr_sendto);
+      end else if hypc = 'Recvfrom' then
+      begin
+        EnableHyperCall(syscall_nr_recvfrom);
+      end else if hypc = 'Close' then
+      begin
+        EnableHyperCall(syscall_nr_close);
+      end else if hypc = 'Accept' then
+      begin
+        EnableHyperCall(syscall_nr_accept);
+      end else if hypc = 'Listen' then
+      begin
+        EnableHyperCall(syscall_nr_listen);
+      end else if hypc = 'Open' then
+      begin
+        EnableHyperCall(syscall_nr_open);
+      end else if hypc = 'Close' then
+      begin
+        EnableHyperCall(syscall_nr_close);
+      end;
+
+    end;
+  end;
+  if jData.FindPath('Debug.Allowed') <> Nil then
+  begin
+    if jData.FindPath('Debug.Allowed').AsBoolean then
+    begin
+      ModeDebug := true;
+      DbgLocalPort := StrtoInt(jData.FindPath('Debug.Port').AsString);
+    end;
+  end;
+  freemem(jData);
   If not KvmInit then
   begin
     WriteLn('Unable to open /dev/kvm');
@@ -180,7 +249,7 @@ begin
     Exit;
   end;
   guest.mem := mem;
-  LoadBinary(PChar(PtrUInt(mem)+GUEST_ADDR_START), Paramstr(1));
+  LoadBinary(PChar(PtrUInt(mem)+GUEST_ADDR_START), BinaryPath);
 
   // set user memory region
   region.slot := 0;

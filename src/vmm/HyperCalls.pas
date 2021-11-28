@@ -26,10 +26,6 @@ interface
 
 uses Kvm, BaseUnix, Sockets, sysutils;
 
-function HyperCallEntry(nr: LongInt; regs: pkvmregs; region, heap: pkvm_user_memory_region): LongInt;
-
-implementation
-
 const
   MAX_NR_HYPER = 500;
   syscall_nr_ioctl = 16;
@@ -47,15 +43,26 @@ const
   syscall_nr_sendto = 44;
   syscall_nr_recvfrom = 45;
 
+function HyperCallEntry(nr: LongInt; regs: pkvmregs; region, heap: pkvm_user_memory_region): LongInt;
+procedure EnableHypercall(nr: LongInt);
+
+implementation
+
 type
   THypercallFunc = function(reg: pkvmregs; region: pkvm_user_memory_region) : LongInt;
 
 var
   HyperCallsAr: array[0..MAX_NR_HYPER-1] of THyperCallFunc;
+  HyperCallsAllowed: array[0..MAX_NR_HYPER-1] of Boolean;
 
 function HyperCallIgnore(regs: pkvmregs; region: pkvm_user_memory_region): LongInt;
 begin
   WriteLn('HyperCall ignored!');
+end;
+
+procedure EnableHypercall(nr: LongInt);
+begin
+  HyperCallsAllowed[nr] := True;
 end;
 
 // TODO: add a function to convert pointer from guest to user-space
@@ -103,7 +110,7 @@ var
 function HyperCallMMap(regs: pkvmregs; heap: pkvm_user_memory_region): LongInt;
 begin
   Result := count + heap^.guest_phys_addr;
-  count += regs^.rsi; 
+  count += regs^.rsi;
 end;
 
 function HyperCallUNMMap(regs: pkvmregs; region: pkvm_user_memory_region): LongInt;
@@ -145,6 +152,13 @@ function HyperCallEntry(nr: LongInt; regs: pkvmregs; region, heap: pkvm_user_mem
 begin
   Result := -1;
   // WriteLn('HyperCall: ', nr, ', rip: 0x', IntToHex(regs^.rip, 4));
+  if not HyperCallsAllowed[nr] then
+  begin
+    WriteLn('HyperCall:' , nr, ' has been blocked');
+    Result := -1;
+    Exit;
+  end;
+
   if nr < MAX_NR_HYPER then
   begin
     if nr = syscall_nr_mmap then
@@ -154,12 +168,13 @@ begin
   end;
 end;
 
-var 
+var
   tmp: LongInt;
 
 initialization
   for tmp:= 0 to MAX_NR_HYPER-1 do
   begin
+    HyperCallsAllowed[tmp] := False;
     HyperCallsAr[tmp] := @HyperCallIgnore;
   end;
   HyperCallsAr[syscall_nr_close] := @HyperCallClose;
