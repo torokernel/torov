@@ -28,7 +28,7 @@ Then, run the HelloWorld example by running:
 ```bash
 docker run --privileged -it torov-dev
 cd examples/HelloWorld
-../build HelloWorld
+../build.sh HelloWorld
 ../../src/vmm/vmm helloworld.json
 ```
 Note that docker runs with the `--priviliged` flag to be able to use Kvm from the container.
