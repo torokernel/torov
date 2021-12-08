@@ -19,7 +19,7 @@ In ToroV, applications trigger a VMEXIT by using the **out** instruction. This i
 You require a Linux host with KVM to run the VMM. To check if KVM is enabled, you can execute **lsmod** to list the loaded module. If KVM is in the list, you can move forward, if not, you need to first install it.
 
 ## Try by using a ToroV Docker image (Recommended)
-To simple try ToroV, you can build an image in docker with the required tools to build the vmm and the examples. Firs, you have to build the docker image by running:
+To simple try ToroV, you can build an image in docker with the required tools to build the vmm and the examples. First, you have to build the docker image by running:
 ```bash
 wget https://raw.githubusercontent.com/torokernel/torov/master/ci/Dockerfile
 docker build -t torov-dev .
