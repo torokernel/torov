@@ -1,6 +1,6 @@
 # Usage: python3 ./profile.py [samples] [name]
 #
-# e.g., ./profile.py 1000 HelloWorld
+# e.g., ./profile.py 1000 helloWorld.json
 #
 import datetime
 import sys
@@ -12,7 +12,7 @@ values = []
 
 for i in range(int(sys.argv[1])):
     a = datetime.datetime.now()
-    os.system('./vmm '+sys.argv[2]) 
+    os.system('../../src/vmm/vmm '+sys.argv[2])
     b = datetime.datetime.now()
     c = b - a;
     max_time = max(max_time, c.total_seconds() * 1000)
