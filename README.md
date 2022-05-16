@@ -101,5 +101,8 @@ python3.5 ./profile.py 1000 helloworld.json
 ```
 In this case, the test measures the average running time of 1000 executions of the HelloWorld example. The scripts outputs a gnuplot command to plot the result.
 ![plot](https://github.com/torokernel/torov/raw/master/examples/HelloWorld/HelloWorld.png)
+
+## References
+[0] ToroV, a kernel in user-space, or sort of. FOSDEM 2022.
 ## License
 GPLv3
