@@ -33,6 +33,7 @@ const
 
 function chroot(path: pchar):longint;
 function clone(func:TCloneFunc;sp:pointer;flags:QWORD;args:pointer):QWORD;
+function eventfd(count: Longint; flags: LongInt): LongInt;
 
 implementation
 
@@ -90,6 +91,22 @@ begin
         movl    path,%rdi
         movl    $161,%rax
         syscall
+        popl    %rdi
+        movl    %rax,__RESULT
+  end;
+end;
+
+function eventfd(count: LongInt; flags: LongInt): LongInt;
+begin
+{$ASMMODE ATT}
+  asm
+        pushl   %rdi
+        pushl   %rsi
+        movl    count, %rdi
+        movl    flags, %rsi
+        movl    $290,%rax
+        syscall
+        popl    %rsi
         popl    %rdi
         movl    %rax,__RESULT
   end;
