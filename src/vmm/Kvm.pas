@@ -211,6 +211,15 @@ type
     dr7: QWORD;
   end;
 
+  kvm_ioeventfd = record
+    datamatch: QWORD;
+    addr: QWORD;        // legal pio/mmio address
+    len: DWORD;         // 1, 2, 4, or 8 bytes; or 0 to ignore length
+    fd: LongInt;
+    flags: DWORD;
+    pad: array[0..35] of Byte;
+  end;
+
 function KvmInit: Boolean;
 function CreateVM: LongInt;
 function SetUserMemoryRegion(vmfd: LongInt; region: pkvm_user_memory_region): LongInt;
